@@ -60,14 +60,24 @@ test('os endpoints de documentos validam upload e isolam os documentos por usuá
   });
   assert.equal(emptyFileResponse.status, 400);
 
+  const extraFieldForm = new FormData();
+  extraFieldForm.append('file', new Blob(['content']), 'extra.txt');
+  extraFieldForm.append('metadata', 'unexpected');
+  const extraFieldResponse = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    headers: { 'X-User-Id': 'alice' },
+    body: extraFieldForm,
+  });
+  assert.equal(extraFieldResponse.status, 400);
+
   const uploadForm = new FormData();
-  uploadForm.append('file', new Blob(['content']), 'sample.txt');
+  uploadForm.append('file', new Blob(['content']), '../../sample.txt');
   const uploadResponse = await fetch(`${baseUrl}/upload`, {
     method: 'POST',
     headers: { 'X-User-Id': 'alice' },
     body: uploadForm,
   });
-  assert.equal(uploadResponse.status, 201);
+  assert.equal(uploadResponse.status, 201, await uploadResponse.clone().text());
   const uploadedDocument = await uploadResponse.json();
   assert.equal(uploadedDocument.originalName, 'sample.txt');
   assert.equal(uploadedDocument.size, 7);
@@ -114,4 +124,6 @@ test('os endpoints de documentos validam upload e isolam os documentos por usuá
 
   const storedFiles = await fsp.readdir(storageDirectory);
   assert.equal(storedFiles.length, 1);
+  const storedFileStats = await fsp.stat(path.join(storageDirectory, storedFiles[0]));
+  assert.equal(storedFileStats.mode & 0o777, 0o600);
 });

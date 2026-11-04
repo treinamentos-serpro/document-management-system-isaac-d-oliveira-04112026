@@ -16,7 +16,7 @@ if (!Number.isSafeInteger(configuredMaxFileSize) || configuredMaxFileSize < 1) {
   throw new Error('MAX_FILE_SIZE_BYTES deve ser um inteiro positivo.');
 }
 
-fs.mkdirSync(storageDirectory, { recursive: true });
+fs.mkdirSync(storageDirectory, { recursive: true, mode: 0o700 });
 
 const documentsRepository = createDocumentsRepository({ storageDirectory });
 const documentsService = createDocumentsService({ documentsRepository });
@@ -41,24 +41,38 @@ app.use((error, req, res, next) => {
   if (error.name === 'MulterError') {
     const isFileTooLarge = error.code === 'LIMIT_FILE_SIZE';
     const isUnexpectedFile = error.code === 'LIMIT_UNEXPECTED_FILE';
+    const isUnexpectedField = error.code === 'LIMIT_FIELD_COUNT';
+    let code = 'VALIDATION_ERROR';
+    let message = 'Não foi possível processar o arquivo enviado.';
+
+    if (isFileTooLarge) {
+      code = 'FILE_TOO_LARGE';
+      message = 'O arquivo excede o tamanho máximo permitido.';
+    } else if (isUnexpectedFile) {
+      message = 'Envie um único arquivo no campo "file".';
+    } else if (isUnexpectedField) {
+      message = 'Campos adicionais não são permitidos.';
+    }
 
     res.status(isFileTooLarge ? 413 : 400).json({
       error: {
-        code: isFileTooLarge ? 'FILE_TOO_LARGE' : 'VALIDATION_ERROR',
-        message: isFileTooLarge
-          ? 'O arquivo excede o tamanho máximo permitido.'
-          : isUnexpectedFile
-            ? 'Envie um único arquivo no campo "file".'
-            : 'Não foi possível processar o arquivo enviado.',
+        code,
+        message,
       },
     });
     return;
   }
 
+  const isStorageError = typeof error.syscall === 'string';
+
   res.status(error.statusCode || 500).json({
     error: {
-      code: error.code || 'INTERNAL_ERROR',
-      message: error.statusCode ? error.message : 'Ocorreu um erro interno.',
+      code: error.statusCode ? error.code : isStorageError ? 'STORAGE_ERROR' : 'INTERNAL_ERROR',
+      message: error.statusCode
+        ? error.message
+        : isStorageError
+          ? 'Não foi possível acessar o armazenamento de documentos.'
+          : 'Ocorreu um erro interno.',
     },
   });
 });

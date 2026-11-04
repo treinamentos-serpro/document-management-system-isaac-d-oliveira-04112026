@@ -14,13 +14,14 @@ function getInitialUserId() {
 
 export default function App() {
   const [userId, setUserId] = useState(getInitialUserId);
-  const [documents, setDocuments] = useState([]);
+  const [documentState, setDocumentState] = useState({ userId: '', documents: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [listError, setListError] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const currentUserId = userId.trim();
+  const documents = documentState.userId === currentUserId ? documentState.documents : [];
 
   useEffect(() => {
     try {
@@ -31,7 +32,7 @@ export default function App() {
 
   useEffect(() => {
     if (!currentUserId) {
-      setDocuments([]);
+      setDocumentState({ userId: '', documents: [] });
       setListError('Informe um identificador de usuário para consultar documentos.');
       setIsLoading(false);
       return undefined;
@@ -42,11 +43,13 @@ export default function App() {
     setListError('');
 
     listDocuments(currentUserId, { signal: controller.signal })
-      .then(setDocuments)
+      .then((nextDocuments) => {
+        setDocumentState({ userId: currentUserId, documents: nextDocuments });
+      })
       .catch((error) => {
         if (error.name !== 'AbortError') {
           setListError(error.message);
-          setDocuments([]);
+          setDocumentState({ userId: currentUserId, documents: [] });
         }
       })
       .finally(() => {
